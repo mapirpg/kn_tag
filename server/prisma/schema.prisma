@@ -1,0 +1,36 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tag {
+  id              String     @id @default(uuid())
+  name            String
+  publicKey       String     @unique // Base64
+  privateKey      String     // Base64 (needed for decryption)
+  hashedPublicKey String     @unique // Base64 (used for fetching)
+  createdAt       DateTime   @default(now())
+  locations       Location[]
+}
+
+model Location {
+  id        String   @id @default(uuid())
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id])
+  latitude  Float
+  longitude Float
+  accuracy  Float
+  timestamp DateTime
+  payload   String?  // Raw encrypted payload for debugging
+  createdAt DateTime @default(now())
+}
