@@ -1,0 +1,43 @@
+{
+  "name": "kn-tag",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
+  },
+  "dependencies": {
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@prisma/client": "^6.19.2",
+    "@tanstack/react-query": "^5.90.20",
+    "axios": "^1.13.4",
+    "crypto-js": "^4.2.0",
+    "elliptic": "^6.6.1",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.563.0",
+    "react-hook-form": "^7.71.1",
+    "react-leaflet": "^5.0.0"
+  },
+  "devDependencies": {
+    "next": "15.1.6",
+    "typescript": "^5",
+    "@types/node": "^20.17.16",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "postcss": "^8",
+    "tailwindcss": "^4",
+    "@tailwindcss/postcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "15.1.6",
+    "prisma": "^6.19.2",
+    "@types/crypto-js": "^4.2.2",
+    "@types/elliptic": "^6.4.18",
+    "@types/leaflet": "^1.9.21"
+  }
+}
