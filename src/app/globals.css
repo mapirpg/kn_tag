@@ -1,7 +1,6 @@
-@import "tailwindcss";
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+@import "leaflet/dist/leaflet.css";
+@import "tailwindcss";
 
 :root {
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -18,11 +17,20 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  display: flex;
-  place-content: center;
   min-width: 320px;
+  min-height: 100vh;
+  background-color: #0f1014;
+}
+
+body > div:first-child {
   min-height: 100vh;
 }
 
@@ -31,6 +39,16 @@ body {
   height: 100%;
   border-radius: 12px;
   background: #1a1b1f;
+}
+
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.78) !important;
+  color: #cbd5e1 !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.96);
 }
 
 /* Glassmorphism effects */

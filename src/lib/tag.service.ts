@@ -42,7 +42,7 @@ export class TagService {
     });
   }
 
-  async updateTagLocations(tagId: string, password: string) {
+  async updateTagLocations(tagId: string) {
     const tag = await this.prisma.tag.findUnique({ where: { id: tagId } });
     if (!tag) throw new Error('Tag not found');
 
@@ -54,7 +54,7 @@ export class TagService {
       .slice(0, 20)
       .toString('base64');
 
-    const reports = await this.findMyService.fetchReports(correctHashedPubKey, password);
+    const reports = await this.findMyService.fetchReports(correctHashedPubKey);
     
     const locations = [];
     for (const report of reports) {
@@ -74,30 +74,7 @@ export class TagService {
         }
     }
 
-    if (locations.length === 0) {
-        // Fallback to mock for testing if no reports found to show SOMETHING working
-        return this.createMockLocation(tagId);
-    }
-
     return locations;
-  }
-
-  private async createMockLocation(tagId: string) {
-    const baseLatitude = -23.5505;
-    const baseLongitude = -46.6333;
-
-    const location = await this.prisma.location.create({
-      data: {
-        tagId,
-        latitude: baseLatitude + (Math.random() - 0.5) * 0.02,
-        longitude: baseLongitude + (Math.random() - 0.5) * 0.02,
-        accuracy: 10 + Math.random() * 30,
-        timestamp: new Date(),
-        payload: 'mock_data',
-      },
-    });
-
-    return [location];
   }
 }
 

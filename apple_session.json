@@ -1,0 +1,42 @@
+{
+    "type": "account",
+    "ids": {
+        "uid": "7aad7a2d-c134-4f94-afb7-a2e3d69d8836",
+        "devid": "708d7e58-0882-4e18-9289-7de683c87278"
+    },
+    "account": {
+        "username": "mapirpg@gmail.com",
+        "password": "*Buceta123",
+        "info": {
+            "account_name": "mapirpg@gmail.com",
+            "first_name": "Marcel",
+            "last_name": "Perin Inacio",
+            "trusted_device_2fa": false
+        }
+    },
+    "login": {
+        "state": 3,
+        "data": {
+            "dsid": "17705178257",
+            "mobileme_data": {
+                "protocolVersion": "2",
+                "tokens": {
+                    "mmeFMFAppToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDg6khDxYEkkmti63V439FxxaX9acT-UZ2Ovk4lAfxOOnX5N2nQ~~",
+                    "keyTransparencyToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDpbXowpLCoMPWPbyAMUa_z9jix6yvhXA8f-HtT_I7WwPRRCS3w~~",
+                    "mapsToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDgr1Cs5ciq5RcRKswn47JhQIJywhN18z0WRtL9juatvyD_MciQ~~",
+                    "searchPartyToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDgbF0qekwROZ9NSmQEDnMxAN24Pc-26qDHPBo2faQ-NVq1nntA~~",
+                    "mmeFMIPToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDtB9d8YWYOMu79LtxYf5TqkbXBjqnG5K6tQVJs_5BRvcPIqF0g~~",
+                    "cloudKitToken": "EAICAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDuWws2e5GFZ3X3gI4UPpa862b76WGv64nZhL0BKaYylnk4r9aQ~~",
+                    "mmeFMIPSiriToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDt-6uV4p36LAAgMvkYQ-AIa3FzoKFmyUjdTPPA0EHvEoVn5OpQ~~",
+                    "mmeFMIPAppToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDr0l5XsBJQX3Q0R4djE6wSfnIqURsiq_Rns0YiULS9Vf-CAWhg~~",
+                    "mmeAuthToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7+ssNdZkSL/EjP0BqXXtXjCuZaDFRETS1hYxtbB5C/sQdSvwqsffY1EqK/WYvUwOBuZztK/8ZDkAg0URsyBgRZqDBI/CbCLCp2jUc3KFK6HZPIh7Hu39oUBP2bQ==",
+                    "mmeBTMMInfiniteToken": "EAACAAAABLwIAAAAAGmwI8cRDmdzLmljbG91ZC5hdXRovQC3vNBOw5sYrymeyc0IjFqjDf7CGF9vRea7-ssNdZkSL_EjP0BqXXtXjCuZaDFRETS1hYxtbB5C_sQdSvwqsffY1EqK_WYvUwOBuZztK_8ZDpLBwEni1V_CAXzQKyObpxpHDL8W9ddnL6lumASU6JVgqBENLw~~"
+                }
+            }
+        }
+    },
+    "anisette": {
+        "type": "aniRemote",
+        "url": "http://127.0.0.1:6970"
+    }
+}

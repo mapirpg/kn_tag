@@ -2,57 +2,70 @@ import { appleAuthService, AppleAuthService } from './apple-auth.service';
 import axios from 'axios';
 import * as crypto from 'crypto';
 import * as elliptic from 'elliptic';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
 
 const ec224 = new elliptic.ec('p224');
+const execAsync = promisify(exec);
 
 export class FindMyService {
   constructor(private appleAuthService: AppleAuthService) {}
 
-  async fetchReports(hashedPublicKey: string, password: string) {
-    const anisetteHeaders = await this.appleAuthService.getAnisetteHeaders();
-    const authHeaders = this.appleAuthService.getAuthHeaders(password);
+  private parseBridgeOutput(stdout: string, stderr: string) {
+    const trimmedStdout = stdout.trim();
+    const marker = '---JSON_START---';
+    const markerIndex = trimmedStdout.lastIndexOf(marker);
+    const jsonPayload = markerIndex >= 0
+      ? trimmedStdout.slice(markerIndex + marker.length).trim()
+      : trimmedStdout.split(/\r?\n/).reverse().find((line) => line.trim().startsWith('{'))?.trim();
 
-    const url = 'https://gateway.icloud.com/searchd/findme/location';
-
-    // Fetch only the last 24 hours to be more reasonable
-    const oneDayInMs = 24 * 60 * 60 * 1000;
-    const startTime = Date.now() - oneDayInMs;
-    const endTime = Date.now();
-
-    const body = {
-      search: [
-        {
-          startDate: startTime,
-          endDate: endTime,
-          ids: [hashedPublicKey],
-        },
-      ],
-    };
+    if (!jsonPayload) {
+      const details = [trimmedStdout, stderr.trim()].filter(Boolean).join('\n');
+      throw new Error(details || 'Python bridge returned no JSON payload.');
+    }
 
     try {
-      const response = await axios.post(url, body, {
-        timeout: 20000,
-        headers: {
-          ...anisetteHeaders,
-          ...authHeaders,
-          'Content-Type': 'application/json',
-          'Accept': '*/*',
-          'User-Agent': anisetteHeaders['X-Mme-Client-Info'] || 'FindMy/376 CFNetwork/1240.0.4 Darwin/20.6.0',
-          'X-Apple-App-Bundle-Id': 'com.apple.findmy',
-          'X-Apple-I-MD-Rinfo': anisetteHeaders['X-Apple-I-MD-Rinfo'],
-          'X-Apple-Search-Session-Id': crypto.randomUUID(),
-        },
-      });
+      return JSON.parse(jsonPayload);
+    } catch {
+      throw new Error(`Invalid bridge JSON payload: ${jsonPayload}`);
+    }
+  }
 
-      return response.data.results || [];
-    } catch (error: any) {
-      if (error.response) {
-        console.error('Apple API Error Response:', JSON.stringify(error.response.data, null, 2));
+  async fetchReports(hashedPublicKey: string) {
+    const appleId = (process.env.APPLE_ID || '').replace(/['"]/, '').trim();
+    const password = (process.env.APPLE_PASSWORD || '').replace(/['"]/, '').trim();
+    const anisetteUrl = process.env.ANISETTE_SERVER_URL || 'http://127.0.0.1:6970';
+
+    if (!password) {
+      throw new Error('APPLE_PASSWORD não está definido no .env');
+    }
+
+    // Path to the python bridge script
+    const scriptPath = path.join(process.cwd(), 'src', 'lib', 'scripts', 'findmy_bridge.py');
+    
+    try {
+      // Execute the python script
+      // We use base64 for public key to avoid shell issues, findmy_bridge.py handles it
+      const cmd = `py "${scriptPath}" "${appleId}" "${password}" "${anisetteUrl}" "${hashedPublicKey}"`;
+      
+      console.log('Executing FindMy bridge...');
+      const { stdout, stderr } = await execAsync(cmd);
+
+      if (stderr && !stdout) {
+        console.error('Bridge Stderr:', stderr);
+        throw new Error(`Bridge Error: ${stderr}`);
       }
-      console.error(
-        'Failed to fetch reports from Apple:',
-        error.message
-      );
+
+      const result = this.parseBridgeOutput(stdout, stderr);
+      
+      if (result.status === 'error') {
+        throw new Error(result.message);
+      }
+
+      return result.reports || [];
+    } catch (error: any) {
+      console.error('Failed to fetch reports via Python bridge:', error.message);
       throw error;
     }
   }

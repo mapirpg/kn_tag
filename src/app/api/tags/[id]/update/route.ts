@@ -7,8 +7,7 @@ export async function POST(
 ) {
   try {
     const { id } = await props.params;
-    const { password } = await request.json();
-    const locations = await tagService.updateTagLocations(id, password);
+    const locations = await tagService.updateTagLocations(id);
     return NextResponse.json(locations);
   } catch (error: any) {
     return NextResponse.json({ message: error.message }, { status: 500 });
