@@ -89,7 +89,7 @@ export class TagService {
     const locations = [];
     for (const [index, report] of reports.entries()) {
         console.log(`[tag.service] decrypting report tagId=${tagId} reportIndex=${index}`);
-        const decrypted = this.findMyService.decryptReport(report.payload, tag.privateKey);
+      const decrypted = this.findMyService.decryptReport(report.payload, tag.privateKey, report.timestamp);
         if (decrypted) {
             const loc = await this.prisma.location.create({
                 data: {

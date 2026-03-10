@@ -60,7 +60,7 @@ export class FindMyService {
     const authTag = authTagAtEnd ? afterEph.slice(-16) : afterEph.slice(0, 16);
     const ciphertext = authTagAtEnd ? afterEph.slice(0, -16) : afterEph.slice(16);
 
-    if (ciphertext.length < 13) {
+    if (ciphertext.length < 1) {
       throw new Error(`ciphertext too short (${ciphertext.length})`);
     }
 
@@ -86,17 +86,7 @@ export class FindMyService {
     let decrypted = decipher.update(ciphertext);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
 
-    const timestamp = decrypted.readUInt32BE(0);
-    const latitude = decrypted.readInt32BE(4) / 10000000.0;
-    const longitude = decrypted.readInt32BE(8) / 10000000.0;
-    const accuracy = decrypted.readUInt8(12);
-
-    return {
-      timestamp: new Date(timestamp * 1000),
-      latitude,
-      longitude,
-      accuracy,
-    };
+    return decrypted;
   }
 
   async fetchReports(hashedPublicKey: string) {
@@ -176,7 +166,7 @@ export class FindMyService {
     }
   }
 
-  decryptReport(encryptedPayloadBase64: string, privateKeyBase64: string) {
+  decryptReport(encryptedPayloadBase64: string, privateKeyBase64: string, reportTimestamp?: string) {
     try {
       const payloadDecoded = this.decodeInput(encryptedPayloadBase64);
       const privateKeyDecoded = this.decodeInput(privateKeyBase64);
@@ -188,6 +178,13 @@ export class FindMyService {
       }
 
       const attempts: Array<{ ephOffset: number; ephLen: number; authTagAtEnd: boolean }> = [];
+
+      // Macless/OpenHaystack payloads commonly carry a 5-byte header before the ephemeral key.
+      if (payload.length > 62 && payload[5] === 0x04) {
+        attempts.push({ ephOffset: 5, ephLen: 57, authTagAtEnd: true });
+        attempts.push({ ephOffset: 5, ephLen: 57, authTagAtEnd: false });
+      }
+
       const firstBytesToScan = Math.min(payload.length, 16);
 
       for (let offset = 0; offset < firstBytesToScan; offset += 1) {
@@ -213,7 +210,43 @@ export class FindMyService {
             attempt.ephLen,
             attempt.authTagAtEnd,
           );
-          return decrypted;
+
+          let timestamp = reportTimestamp ? new Date(reportTimestamp) : new Date();
+          if (Number.isNaN(timestamp.getTime()) && decrypted.length >= 4) {
+            timestamp = new Date(decrypted.readUInt32BE(0) * 1000);
+          }
+
+          // Format A (legacy parser): [ts(4) lat(4) lon(4) acc(1)]
+          if (decrypted.length >= 13) {
+            return {
+              timestamp,
+              latitude: decrypted.readInt32BE(4) / 10000000.0,
+              longitude: decrypted.readInt32BE(8) / 10000000.0,
+              accuracy: decrypted.readUInt8(12),
+            };
+          }
+
+          // Format B (short payload used by some beacons): [lat(4) lon(4) acc(1)]
+          if (decrypted.length >= 9) {
+            return {
+              timestamp,
+              latitude: decrypted.readInt32BE(0) / 10000000.0,
+              longitude: decrypted.readInt32BE(4) / 10000000.0,
+              accuracy: decrypted.readUInt8(8),
+            };
+          }
+
+          // Format C (minimal): [lat(4) lon(4)] with unknown accuracy.
+          if (decrypted.length >= 8) {
+            return {
+              timestamp,
+              latitude: decrypted.readInt32BE(0) / 10000000.0,
+              longitude: decrypted.readInt32BE(4) / 10000000.0,
+              accuracy: 0,
+            };
+          }
+
+          lastError = `decrypted payload too short (${decrypted.length}) @offset=${attempt.ephOffset} ephLen=${attempt.ephLen} authTagAtEnd=${attempt.authTagAtEnd}`;
         } catch (attemptError: any) {
           lastError = `${attemptError?.message || String(attemptError)} @offset=${attempt.ephOffset} ephLen=${attempt.ephLen} authTagAtEnd=${attempt.authTagAtEnd}`;
         }
