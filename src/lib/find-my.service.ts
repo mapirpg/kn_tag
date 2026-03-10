@@ -8,9 +8,19 @@ import * as path from 'path';
 
 const ec224 = new elliptic.ec('p224');
 const execAsync = promisify(exec);
+const HEX_RE = /^[0-9a-fA-F]+$/;
 
 export class FindMyService {
   constructor(private appleAuthService: AppleAuthService) {}
+
+  private decodeInput(value: string) {
+    const normalized = (value || '').trim();
+    const isHex = normalized.length % 2 === 0 && HEX_RE.test(normalized);
+    return {
+      bytes: Buffer.from(normalized, isHex ? 'hex' : 'base64'),
+      encoding: isHex ? 'hex' : 'base64',
+    };
+  }
 
   private parseBridgeOutput(stdout: string, stderr: string) {
     const trimmedStdout = stdout.trim();
@@ -92,8 +102,14 @@ export class FindMyService {
 
   decryptReport(encryptedPayloadBase64: string, privateKeyBase64: string) {
     try {
-      const payload = Buffer.from(encryptedPayloadBase64, 'base64');
-      const privateKey = Buffer.from(privateKeyBase64, 'base64');
+      const payloadDecoded = this.decodeInput(encryptedPayloadBase64);
+      const privateKeyDecoded = this.decodeInput(privateKeyBase64);
+      const payload = payloadDecoded.bytes;
+      const privateKey = privateKeyDecoded.bytes;
+
+      if (payload.length < 74) {
+        throw new Error(`Invalid payload length: ${payload.length} (encoding=${payloadDecoded.encoding})`);
+      }
 
       const ephPubKeyBytes = payload.slice(0, 57);
       const authTag = payload.slice(57, 57 + 16);
