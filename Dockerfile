@@ -43,11 +43,11 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Copy Prisma schema + migrations so we can run migrate deploy at startup
+# Copy full node_modules for prisma migrate deploy (includes all transitive deps)
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy Prisma schema + migrations
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Copy the Python bridge script (keep path consistent with process.cwd())
 COPY --from=builder /app/src/lib/scripts ./src/lib/scripts
