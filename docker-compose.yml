@@ -27,7 +27,7 @@ services:
       APPLE_PASSWORD: ${APPLE_PASSWORD}
       NODE_ENV: production
     volumes:
-      - apple_session:/app/apple_session.json
+      - apple_session:/app/data
     depends_on:
       - db
       - anisette

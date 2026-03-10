@@ -35,6 +35,9 @@ ENV NODE_ENV=production
 # Make the venv python available as "py" (used by find-my.service.ts)
 RUN ln -s /app/.venv/bin/python3 /usr/local/bin/py
 
+# Persistent session directory (mounted as a volume)
+RUN mkdir -p /app/data
+
 # Copy built Next.js standalone output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
@@ -48,9 +51,6 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Copy the Python bridge script (keep path consistent with process.cwd())
 COPY --from=builder /app/src/lib/scripts ./src/lib/scripts
-
-# Copy the Apple session file if it already exists (will be empty on first run)
-COPY --from=builder /app/apple_session.json* ./
 
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh

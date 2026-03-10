@@ -13,7 +13,7 @@ socket.getaddrinfo = getaddrinfo_ipv4
 
 from findmy import AsyncAppleAccount, RemoteAnisetteProvider, LoginState
 
-SESSION_FILE = Path("apple_session.json")
+SESSION_FILE = Path(os.environ.get("SESSION_DIR", "/app/data")) / "apple_session.json"
 
 
 def build_auth_error_payload(error_msg):
