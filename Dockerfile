@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --prefer-offline || npm ci
+RUN npm install
 
 # ─── Stage 2: builder ────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
