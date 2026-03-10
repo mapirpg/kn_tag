@@ -42,6 +42,63 @@ export class FindMyService {
     }
   }
 
+  private decryptWithParams(
+    payload: Buffer,
+    privateKey: Buffer,
+    ephOffset: number,
+    ephLen: number,
+    authTagAtEnd: boolean,
+  ) {
+    const ephEnd = ephOffset + ephLen;
+    if (ephEnd + 17 > payload.length) {
+      throw new Error(`payload too short for ephOffset=${ephOffset} ephLen=${ephLen}`);
+    }
+
+    const ephPubKeyBytes = payload.slice(ephOffset, ephEnd);
+
+    const afterEph = payload.slice(ephEnd);
+    const authTag = authTagAtEnd ? afterEph.slice(-16) : afterEph.slice(0, 16);
+    const ciphertext = authTagAtEnd ? afterEph.slice(0, -16) : afterEph.slice(16);
+
+    if (ciphertext.length < 13) {
+      throw new Error(`ciphertext too short (${ciphertext.length})`);
+    }
+
+    const tagPrivKey = ec224.keyFromPrivate(privateKey);
+    const ephPubKey = ec224.keyFromPublic(ephPubKeyBytes);
+    const sharedSecret = tagPrivKey.derive(ephPubKey.getPublic());
+
+    const sharedSecretBuffer = Buffer.from(sharedSecret.toArray());
+
+    const kdfOutput = crypto
+      .createHash('sha256')
+      .update(sharedSecretBuffer)
+      .digest();
+    const aesKey = kdfOutput.slice(0, 16);
+
+    const decipher = crypto.createDecipheriv(
+      'aes-128-gcm',
+      aesKey,
+      Buffer.alloc(12, 0),
+    );
+    decipher.setAuthTag(authTag);
+
+    let decrypted = decipher.update(ciphertext);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+    const timestamp = decrypted.readUInt32BE(0);
+    const latitude = decrypted.readInt32BE(4) / 10000000.0;
+    const longitude = decrypted.readInt32BE(8) / 10000000.0;
+    const accuracy = decrypted.readUInt8(12);
+
+    return {
+      timestamp: new Date(timestamp * 1000),
+      latitude,
+      longitude,
+      accuracy,
+    };
+  }
+
   async fetchReports(hashedPublicKey: string) {
     const startedAt = Date.now();
     const appleId = (process.env.APPLE_ID || '').replace(/['"]/, '').trim();
@@ -75,6 +132,10 @@ export class FindMyService {
         `[findmy.service] bridge finished durationMs=${Date.now() - startedAt} stdoutLen=${stdout.length} stderrLen=${stderr.length}`,
       );
 
+      if (process.env.FINDMY_LOG_RAW === '1') {
+        console.log(`[findmy.service] bridge raw stdout begin\n${stdout}\n[findmy.service] bridge raw stdout end`);
+      }
+
       if (stderr && !stdout) {
         console.error('Bridge Stderr:', stderr);
         throw new Error(`Bridge Error: ${stderr}`);
@@ -87,9 +148,24 @@ export class FindMyService {
         throw new Error(result.message);
       }
 
-      console.log(`[findmy.service] fetchReports success reports=${(result.reports || []).length}`);
+      const reports = result.reports || [];
+      console.log(`[findmy.service] fetchReports success reports=${reports.length}`);
 
-      return result.reports || [];
+      for (let i = 0; i < Math.min(3, reports.length); i += 1) {
+        try {
+          const payloadDecoded = this.decodeInput(reports[i]?.payload || '');
+          const firstByteHex = payloadDecoded.bytes.length > 0
+            ? payloadDecoded.bytes[0].toString(16).padStart(2, '0')
+            : 'na';
+          console.log(
+            `[findmy.service] rawReport sample index=${i} payloadEncoding=${payloadDecoded.encoding} payloadLen=${payloadDecoded.bytes.length} firstByte=0x${firstByteHex} payloadPrefix=${(reports[i]?.payload || '').slice(0, 40)} timestamp=${reports[i]?.timestamp || 'na'}`,
+          );
+        } catch (sampleError: any) {
+          console.warn(`[findmy.service] rawReport sample parse failed index=${i} reason=${sampleError?.message}`);
+        }
+      }
+
+      return reports;
     } catch (error: any) {
       if (error?.killed || error?.signal === 'SIGTERM') {
         console.error('[findmy.service] bridge timeout after 120000ms');
@@ -111,43 +187,42 @@ export class FindMyService {
         throw new Error(`Invalid payload length: ${payload.length} (encoding=${payloadDecoded.encoding})`);
       }
 
-      const ephPubKeyBytes = payload.slice(0, 57);
-      const authTag = payload.slice(57, 57 + 16);
-      const ciphertext = payload.slice(57 + 16);
+      const attempts: Array<{ ephOffset: number; ephLen: number; authTagAtEnd: boolean }> = [];
+      const firstBytesToScan = Math.min(payload.length, 16);
 
-      const tagPrivKey = ec224.keyFromPrivate(privateKey);
-      const ephPubKey = ec224.keyFromPublic(ephPubKeyBytes);
-      const sharedSecret = tagPrivKey.derive(ephPubKey.getPublic());
+      for (let offset = 0; offset < firstBytesToScan; offset += 1) {
+        const marker = payload[offset];
+        if (marker === 0x04) attempts.push({ ephOffset: offset, ephLen: 57, authTagAtEnd: false });
+        if (marker === 0x04) attempts.push({ ephOffset: offset, ephLen: 57, authTagAtEnd: true });
+        if (marker === 0x02 || marker === 0x03) attempts.push({ ephOffset: offset, ephLen: 29, authTagAtEnd: false });
+        if (marker === 0x02 || marker === 0x03) attempts.push({ ephOffset: offset, ephLen: 29, authTagAtEnd: true });
+      }
 
-      const sharedSecretBuffer = Buffer.from(sharedSecret.toArray());
+      if (attempts.length === 0) {
+        attempts.push({ ephOffset: 0, ephLen: 57, authTagAtEnd: false });
+        attempts.push({ ephOffset: 0, ephLen: 57, authTagAtEnd: true });
+      }
 
-      const kdfOutput = crypto
-        .createHash('sha256')
-        .update(sharedSecretBuffer)
-        .digest();
-      const aesKey = kdfOutput.slice(0, 16);
+      let lastError: string | null = null;
+      for (const attempt of attempts) {
+        try {
+          const decrypted = this.decryptWithParams(
+            payload,
+            privateKey,
+            attempt.ephOffset,
+            attempt.ephLen,
+            attempt.authTagAtEnd,
+          );
+          return decrypted;
+        } catch (attemptError: any) {
+          lastError = `${attemptError?.message || String(attemptError)} @offset=${attempt.ephOffset} ephLen=${attempt.ephLen} authTagAtEnd=${attempt.authTagAtEnd}`;
+        }
+      }
 
-      const decipher = crypto.createDecipheriv(
-        'aes-128-gcm',
-        aesKey,
-        Buffer.alloc(12, 0),
+      const firstBytesHex = payload.slice(0, 8).toString('hex');
+      throw new Error(
+        `all decrypt attempts failed payloadLen=${payload.length} payloadEncoding=${payloadDecoded.encoding} privateKeyEncoding=${privateKeyDecoded.encoding} firstBytes=${firstBytesHex} lastError=${lastError}`,
       );
-      decipher.setAuthTag(authTag);
-
-      let decrypted = decipher.update(ciphertext);
-      decrypted = Buffer.concat([decrypted, decipher.final()]);
-
-      const timestamp = decrypted.readUInt32BE(0);
-      const latitude = decrypted.readInt32BE(4) / 10000000.0;
-      const longitude = decrypted.readInt32BE(8) / 10000000.0;
-      const accuracy = decrypted.readUInt8(12);
-
-      return {
-        timestamp: new Date(timestamp * 1000),
-        latitude,
-        longitude,
-        accuracy,
-      };
     } catch (error: any) {
       console.error('Decryption failed:', error.message);
       return null;
