@@ -3,6 +3,7 @@
 import { X, Copy, Check } from 'lucide-react';
 import { Tag } from '@/types';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface TagKeysModalProps {
   tag: Tag;
@@ -35,8 +36,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
 }
 
 export function TagKeysModal({ tag, onClose }: TagKeysModalProps) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="glass rounded-2xl border border-white/10 w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-white/10">
           <h2 className="font-semibold text-slate-100">Keys — {tag.name}</h2>
@@ -50,6 +51,7 @@ export function TagKeysModal({ tag, onClose }: TagKeysModalProps) {
           <CopyField label="Hashed Public Key" value={tag.hashedPublicKey} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

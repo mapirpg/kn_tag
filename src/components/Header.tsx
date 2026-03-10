@@ -1,4 +1,5 @@
 import { MapPin, Plus } from "lucide-react"
+import {version} from '../../package.json';
 
 interface HeaderProps {
   setShowAddModal: (show: boolean) => void;
@@ -13,7 +14,7 @@ export const Header = ({
         <div className="p-2 bg-blue-600 rounded-lg">
           <MapPin size={24} className="text-white" />
         </div>
-        <h1 className="text-xl font-bold tracking-tight">KnTag Server</h1>
+        <h1 className="text-xl font-bold tracking-tight">KnTag Server <p>{version}</p></h1>
       </div>
 
       <div className="flex items-center gap-4">
