@@ -3,19 +3,35 @@ services:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: kntag
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   anisette:
     image: dadoum/anisette-v3-server
     restart: always
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
     ports:
-      - "6970:6969"
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ANISETTE_SERVER_URL: ${ANISETTE_SERVER_URL}
+      APPLE_ID: ${APPLE_ID}
+      APPLE_PASSWORD: ${APPLE_PASSWORD}
+      NODE_ENV: production
+    volumes:
+      - apple_session:/app/apple_session.json
+    depends_on:
+      - db
+      - anisette
 
 volumes:
   postgres_data:
+  apple_session:
