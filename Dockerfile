@@ -32,8 +32,7 @@ RUN /app/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-# Make the venv python available as "py" (used by find-my.service.ts)
-RUN ln -s /app/.venv/bin/python3 /usr/local/bin/py
+ENV PYTHON_BIN=/app/.venv/bin/python3
 
 # Persistent session directory (mounted as a volume)
 RUN mkdir -p /app/data

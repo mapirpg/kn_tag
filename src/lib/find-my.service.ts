@@ -47,7 +47,7 @@ export class FindMyService {
     try {
       // Execute the python script
       // We use base64 for public key to avoid shell issues, findmy_bridge.py handles it
-      const cmd = `py "${scriptPath}" "${appleId}" "${password}" "${anisetteUrl}" "${hashedPublicKey}"`;
+      const cmd = `"${process.env.PYTHON_BIN || 'python3'}" "${scriptPath}" "${appleId}" "${password}" "${anisetteUrl}" "${hashedPublicKey}"`;
       
       console.log('Executing FindMy bridge...');
       const { stdout, stderr } = await execAsync(cmd);
