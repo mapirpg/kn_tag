@@ -42,51 +42,39 @@ export class FindMyService {
     }
   }
 
-  private decryptWithParams(
-    payload: Buffer,
-    privateKey: Buffer,
-    ephOffset: number,
-    ephLen: number,
-    authTagAtEnd: boolean,
-  ) {
-    const ephEnd = ephOffset + ephLen;
-    if (ephEnd + 17 > payload.length) {
-      throw new Error(`payload too short for ephOffset=${ephOffset} ephLen=${ephLen}`);
+  private decryptOpenHaystackPayload(payload: Buffer, privateKey: Buffer) {
+    let normalizedPayload = payload;
+    // OpenHaystack fix for newer report format (extra byte at index 5)
+    if (normalizedPayload.length > 88) {
+      normalizedPayload = Buffer.concat([normalizedPayload.slice(0, 5), normalizedPayload.slice(6)]);
     }
 
-    const ephPubKeyBytes = payload.slice(ephOffset, ephEnd);
-
-    const afterEph = payload.slice(ephEnd);
-    const authTag = authTagAtEnd ? afterEph.slice(-16) : afterEph.slice(0, 16);
-    const ciphertext = authTagAtEnd ? afterEph.slice(0, -16) : afterEph.slice(16);
-
-    if (ciphertext.length < 1) {
-      throw new Error(`ciphertext too short (${ciphertext.length})`);
+    if (normalizedPayload.length < 88) {
+      throw new Error(`payload too short for OpenHaystack format (${normalizedPayload.length})`);
     }
+
+    const ephKey = normalizedPayload.slice(5, 62);
+    const encData = normalizedPayload.slice(62, 72);
+    const tag = normalizedPayload.slice(72);
 
     const tagPrivKey = ec224.keyFromPrivate(privateKey);
-    const ephPubKey = ec224.keyFromPublic(ephPubKeyBytes);
+    const ephPubKey = ec224.keyFromPublic(ephKey);
     const sharedSecret = tagPrivKey.derive(ephPubKey.getPublic());
+    const sharedSecretBuffer = Buffer.from(sharedSecret.toArray('be', 28));
 
-    const sharedSecretBuffer = Buffer.from(sharedSecret.toArray());
-
-    const kdfOutput = crypto
+    const derivedKey = crypto
       .createHash('sha256')
-      .update(sharedSecretBuffer)
+      .update(Buffer.concat([sharedSecretBuffer, Buffer.from([0x00, 0x00, 0x00, 0x01]), ephKey]))
       .digest();
-    const aesKey = kdfOutput.slice(0, 16);
 
-    const decipher = crypto.createDecipheriv(
-      'aes-128-gcm',
-      aesKey,
-      Buffer.alloc(12, 0),
-    );
-    decipher.setAuthTag(authTag);
+    const decryptionKey = derivedKey.slice(0, 16);
+    const iv = derivedKey.slice(16);
 
-    let decrypted = decipher.update(ciphertext);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    const decipher = crypto.createDecipheriv('aes-128-gcm', decryptionKey, iv);
+    decipher.setAuthTag(tag);
 
-    return decrypted;
+    const decrypted = Buffer.concat([decipher.update(encData), decipher.final()]);
+    return { decrypted, normalizedPayload };
   }
 
   async fetchReports(hashedPublicKey: string) {
@@ -173,89 +161,27 @@ export class FindMyService {
       const payload = payloadDecoded.bytes;
       const privateKey = privateKeyDecoded.bytes;
 
-      if (payload.length < 74) {
-        throw new Error(`Invalid payload length: ${payload.length} (encoding=${payloadDecoded.encoding})`);
+      const { decrypted, normalizedPayload } = this.decryptOpenHaystackPayload(payload, privateKey);
+
+      if (decrypted.length < 9) {
+        throw new Error(`decrypted payload too short (${decrypted.length})`);
       }
 
-      const attempts: Array<{ ephOffset: number; ephLen: number; authTagAtEnd: boolean }> = [];
+      const latitude = decrypted.readInt32BE(0) / 10000000.0;
+      const longitude = decrypted.readInt32BE(4) / 10000000.0;
+      const accuracy = decrypted.readUInt8(8);
 
-      // Macless/OpenHaystack payloads commonly carry a 5-byte header before the ephemeral key.
-      if (payload.length > 62 && payload[5] === 0x04) {
-        attempts.push({ ephOffset: 5, ephLen: 57, authTagAtEnd: true });
-        attempts.push({ ephOffset: 5, ephLen: 57, authTagAtEnd: false });
-      }
+      const payloadTimestamp = normalizedPayload.readUInt32BE(0) + 978307200;
+      const timestamp = Number.isFinite(payloadTimestamp)
+        ? new Date(payloadTimestamp * 1000)
+        : (reportTimestamp ? new Date(reportTimestamp) : new Date());
 
-      const firstBytesToScan = Math.min(payload.length, 16);
-
-      for (let offset = 0; offset < firstBytesToScan; offset += 1) {
-        const marker = payload[offset];
-        if (marker === 0x04) attempts.push({ ephOffset: offset, ephLen: 57, authTagAtEnd: false });
-        if (marker === 0x04) attempts.push({ ephOffset: offset, ephLen: 57, authTagAtEnd: true });
-        if (marker === 0x02 || marker === 0x03) attempts.push({ ephOffset: offset, ephLen: 29, authTagAtEnd: false });
-        if (marker === 0x02 || marker === 0x03) attempts.push({ ephOffset: offset, ephLen: 29, authTagAtEnd: true });
-      }
-
-      if (attempts.length === 0) {
-        attempts.push({ ephOffset: 0, ephLen: 57, authTagAtEnd: false });
-        attempts.push({ ephOffset: 0, ephLen: 57, authTagAtEnd: true });
-      }
-
-      let lastError: string | null = null;
-      for (const attempt of attempts) {
-        try {
-          const decrypted = this.decryptWithParams(
-            payload,
-            privateKey,
-            attempt.ephOffset,
-            attempt.ephLen,
-            attempt.authTagAtEnd,
-          );
-
-          let timestamp = reportTimestamp ? new Date(reportTimestamp) : new Date();
-          if (Number.isNaN(timestamp.getTime()) && decrypted.length >= 4) {
-            timestamp = new Date(decrypted.readUInt32BE(0) * 1000);
-          }
-
-          // Format A (legacy parser): [ts(4) lat(4) lon(4) acc(1)]
-          if (decrypted.length >= 13) {
-            return {
-              timestamp,
-              latitude: decrypted.readInt32BE(4) / 10000000.0,
-              longitude: decrypted.readInt32BE(8) / 10000000.0,
-              accuracy: decrypted.readUInt8(12),
-            };
-          }
-
-          // Format B (short payload used by some beacons): [lat(4) lon(4) acc(1)]
-          if (decrypted.length >= 9) {
-            return {
-              timestamp,
-              latitude: decrypted.readInt32BE(0) / 10000000.0,
-              longitude: decrypted.readInt32BE(4) / 10000000.0,
-              accuracy: decrypted.readUInt8(8),
-            };
-          }
-
-          // Format C (minimal): [lat(4) lon(4)] with unknown accuracy.
-          if (decrypted.length >= 8) {
-            return {
-              timestamp,
-              latitude: decrypted.readInt32BE(0) / 10000000.0,
-              longitude: decrypted.readInt32BE(4) / 10000000.0,
-              accuracy: 0,
-            };
-          }
-
-          lastError = `decrypted payload too short (${decrypted.length}) @offset=${attempt.ephOffset} ephLen=${attempt.ephLen} authTagAtEnd=${attempt.authTagAtEnd}`;
-        } catch (attemptError: any) {
-          lastError = `${attemptError?.message || String(attemptError)} @offset=${attempt.ephOffset} ephLen=${attempt.ephLen} authTagAtEnd=${attempt.authTagAtEnd}`;
-        }
-      }
-
-      const firstBytesHex = payload.slice(0, 8).toString('hex');
-      throw new Error(
-        `all decrypt attempts failed payloadLen=${payload.length} payloadEncoding=${payloadDecoded.encoding} privateKeyEncoding=${privateKeyDecoded.encoding} firstBytes=${firstBytesHex} lastError=${lastError}`,
-      );
+      return {
+        timestamp,
+        latitude,
+        longitude,
+        accuracy,
+      };
     } catch (error: any) {
       console.error('Decryption failed:', error.message);
       return null;
