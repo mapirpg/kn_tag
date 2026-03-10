@@ -133,12 +133,16 @@ async def fetch_reports(apple_id, password, anisette_url, hashed_public_key):
         
         results = []
         for report in reports:
+            # Raw reports may be encrypted; avoid touching derived location fields here.
+            timestamp_value = None
+            try:
+                timestamp_value = report.timestamp.isoformat() if hasattr(report.timestamp, 'isoformat') else str(report.timestamp)
+            except Exception:
+                timestamp_value = None
+
             results.append({
                 "payload": report.payload.hex() if hasattr(report.payload, 'hex') else str(report.payload),
-                "timestamp": report.timestamp.isoformat() if hasattr(report.timestamp, 'isoformat') else str(report.timestamp),
-                "latitude": report.latitude if hasattr(report, 'latitude') else None,
-                "longitude": report.longitude if hasattr(report, 'longitude') else None,
-                "accuracy": report.accuracy if hasattr(report, 'accuracy') else (report.horizontal_accuracy if hasattr(report, 'horizontal_accuracy') else None)
+                "timestamp": timestamp_value
             })
             
         print("---JSON_START---")
