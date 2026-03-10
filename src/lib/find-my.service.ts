@@ -33,9 +33,15 @@ export class FindMyService {
   }
 
   async fetchReports(hashedPublicKey: string) {
+    const startedAt = Date.now();
     const appleId = (process.env.APPLE_ID || '').replace(/['"]/, '').trim();
     const password = (process.env.APPLE_PASSWORD || '').replace(/['"]/, '').trim();
     const anisetteUrl = process.env.ANISETTE_SERVER_URL || 'http://127.0.0.1:6970';
+    const pythonBin = process.env.PYTHON_BIN || 'python3';
+
+    console.log(
+      `[findmy.service] fetchReports start appleId=${appleId ? `${appleId.slice(0, 3)}***` : 'missing'} anisetteUrl=${anisetteUrl} hashedPrefix=${hashedPublicKey.slice(0, 8)}...`,
+    );
 
     if (!password) {
       throw new Error('APPLE_PASSWORD não está definido no .env');
@@ -47,10 +53,17 @@ export class FindMyService {
     try {
       // Execute the python script
       // We use base64 for public key to avoid shell issues, findmy_bridge.py handles it
-      const cmd = `"${process.env.PYTHON_BIN || 'python3'}" "${scriptPath}" "${appleId}" "${password}" "${anisetteUrl}" "${hashedPublicKey}"`;
+      const cmd = `"${pythonBin}" "${scriptPath}" "${appleId}" "${password}" "${anisetteUrl}" "${hashedPublicKey}"`;
       
-      console.log('Executing FindMy bridge...');
-      const { stdout, stderr } = await execAsync(cmd);
+      console.log(`[findmy.service] executing bridge pythonBin=${pythonBin} scriptPath=${scriptPath}`);
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: 120000,
+        maxBuffer: 10 * 1024 * 1024,
+      });
+
+      console.log(
+        `[findmy.service] bridge finished durationMs=${Date.now() - startedAt} stdoutLen=${stdout.length} stderrLen=${stderr.length}`,
+      );
 
       if (stderr && !stdout) {
         console.error('Bridge Stderr:', stderr);
@@ -60,11 +73,18 @@ export class FindMyService {
       const result = this.parseBridgeOutput(stdout, stderr);
       
       if (result.status === 'error') {
+        console.error(`[findmy.service] bridge returned error message=${result.message}`);
         throw new Error(result.message);
       }
 
+      console.log(`[findmy.service] fetchReports success reports=${(result.reports || []).length}`);
+
       return result.reports || [];
     } catch (error: any) {
+      if (error?.killed || error?.signal === 'SIGTERM') {
+        console.error('[findmy.service] bridge timeout after 120000ms');
+        throw new Error('FindMy bridge timeout: o processo excedeu 120s. Verifique 2FA/sessao da Apple.');
+      }
       console.error('Failed to fetch reports via Python bridge:', error.message);
       throw error;
     }
